@@ -123,13 +123,27 @@ def health():
                       'received_data': received, 'sent_data': sent}))
 
 
+def probe():
+    hostname = urlsplit(required('PRIVATE_FEED_URL')).hostname
+    reachable = False
+    try:
+        with socket.create_connection((hostname, 443), timeout=15):
+            reachable = True
+    except OSError:
+        pass
+    health()
+    if not reachable:
+        raise PublicError('vpn_feed_unreachable')
+    print(json.dumps({'phase': 'vpn_connectivity', 'status': 'passed'}))
+
+
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['up', 'down', 'health'])
+    parser.add_argument('action', choices=['up', 'down', 'health', 'probe'])
     action = parser.parse_args().action
     try:
-        {'up': up, 'down': down, 'health': health}[action]()
+        {'up': up, 'down': down, 'health': health, 'probe': probe}[action]()
         return 0
     except PublicError as error:
         print(json.dumps({'phase': 'vpn', 'status': 'failed', 'category': error.category}))
