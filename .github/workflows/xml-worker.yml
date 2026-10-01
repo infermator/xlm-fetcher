@@ -1,0 +1,51 @@
+name: XML worker
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Operation
+        type: choice
+        options: [probe, import]
+        default: probe
+        required: true
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: xml-worker-production
+  cancel-in-progress: false
+jobs:
+  worker:
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.SCHEDULE_ENABLED == 'true')
+    environment: worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Retrieve trusted worker
+        run: python3 runner.py prepare
+        env:
+          PRIVATE_REPOSITORY: ${{ secrets.PRIVATE_REPOSITORY }}
+          PRIVATE_WORKER_REF: ${{ secrets.PRIVATE_WORKER_REF }}
+          PRIVATE_READ_TOKEN: ${{ secrets.PRIVATE_READ_TOKEN }}
+      - name: Verify trusted worker
+        run: python3 runner.py verify
+      - name: Test complete acquisition
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'probe'
+        run: python3 runner.py probe
+        env:
+          PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
+      - name: Import and retain snapshots
+        if: github.event_name == 'schedule' || inputs.mode == 'import'
+        run: python3 runner.py import
+        env:
+          PRIVATE_SOURCE_ID: ${{ secrets.PRIVATE_SOURCE_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      - name: Remove private temporary files
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/private-job"
