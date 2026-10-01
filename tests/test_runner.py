@@ -15,6 +15,19 @@ import runner
 
 
 class RunnerTests(unittest.TestCase):
+    def test_interruption_terminates_real_child_process(self):
+        original = runner.subprocess.Popen
+        processes = []
+        def spawn(*args, **kwargs):
+            process = original(*args, **kwargs)
+            processes.append(process)
+            return process
+        with patch('runner.subprocess.Popen', side_effect=spawn), patch('runner.time.sleep', side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                runner.command([sys.executable, '-c', 'import time; time.sleep(60)'], 'cancel_test', 90)
+        self.assertEqual(len(processes), 1)
+        self.assertIsNotNone(processes[0].poll())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
