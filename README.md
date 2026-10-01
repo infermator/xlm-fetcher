@@ -46,3 +46,12 @@ Official references:
 - https://docs.github.com/en/actions/concepts/billing-and-usage
 - https://github.com/actions/checkout
 - https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+
+
+## Optional approved private feed network
+
+If an operator explicitly authorizes a WireGuard network for this feed, add its newly issued configuration as environment secret `WIREGUARD_CONFIG` and set environment variable `VPN_ENABLED=true`. Leave it unset until that access is approved. Never paste keys into git, logs, issues or chat; rotate a key that has already been exposed. The operator handles secret entry directly.
+
+`vpn.py` accepts only standard Interface/Peer data and rejects executable hooks. It replaces broad AllowedIPs routes with the current public IPv4 addresses of PRIVATE_FEED_URL, omits VPN DNS, and pins that host for the job. Only feed-host traffic uses the tunnel; repository and database traffic stay on their existing paths. Private network addresses are not crawl targets. The tunnel and host pin are removed in an always-run cleanup step, before private files are removed. No key, endpoint, resolved address or private output is printed.
+
+This option requires a Linux runner with sudo and wireguard-tools. Connection errors, an unreachable peer, or a changed feed route fail the run. A configured key is not proof that the VPN allows this workload. Test manual probe first; compare the database source URL with the approved VPN feed host before any import. Redirects to other hosts are not automatically routed through this feed-only tunnel. Keep SCHEDULE_ENABLED unset until end-to-end publication gates pass.
