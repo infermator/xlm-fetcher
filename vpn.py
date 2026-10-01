@@ -3,11 +3,13 @@ import argparse
 import base64
 import configparser
 import ipaddress
+import http.client
 import json
 import os
 from pathlib import Path
 import re
 import socket
+import ssl
 from urllib.parse import urlsplit
 
 from runner import PublicError, command, required, root
@@ -124,7 +126,8 @@ def health():
 
 
 def probe():
-    hostname = urlsplit(required('PRIVATE_FEED_URL')).hostname
+    parsed = urlsplit(required('PRIVATE_FEED_URL'))
+    hostname = parsed.hostname
     reachable = False
     try:
         with socket.create_connection((hostname, 443), timeout=15):
@@ -135,6 +138,26 @@ def probe():
     if not reachable:
         raise PublicError('vpn_feed_unreachable')
     print(json.dumps({'phase': 'vpn_connectivity', 'status': 'passed'}))
+    connection = http.client.HTTPSConnection(hostname, timeout=15, context=ssl.create_default_context())
+    try:
+        connection.connect()
+        print(json.dumps({'phase': 'vpn_tls', 'status': 'passed'}))
+    except (OSError, ssl.SSLError):
+        connection.close()
+        raise PublicError('vpn_tls_failed') from None
+    try:
+        path = parsed.path or '/'
+        if parsed.query:
+            path += '?' + parsed.query
+        connection.request('HEAD', path, headers={'User-Agent': 'XML-JobRunner/1.0', 'Accept': 'application/xml,text/xml'})
+        response = connection.getresponse()
+        print(json.dumps({'phase': 'vpn_http', 'http_status': response.status}))
+        if response.getheader('cf-mitigated', '').lower() == 'challenge':
+            raise PublicError('http_challenge')
+    except (OSError, http.client.HTTPException):
+        raise PublicError('vpn_http_failed') from None
+    finally:
+        connection.close()
 
 
 def main():
