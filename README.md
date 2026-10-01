@@ -28,7 +28,7 @@ Run manual `XML worker` → `probe` first. It fetches private code, verifies the
 
 Run manual `import` only after source access, database headroom, backup/restore and current-worker full publication gates have been reviewed. The importer loads the source URL from the database itself, preserving source identity/lease ownership; the probe URL is not silently published under another source. It runs snapshot pruning only after successful import. Run and compare an identical accepted-snapshot replay, controlled price/content/removal/failure cases and the private import ledger before certifying the integration.
 
-Only then set repository variable `SCHEDULE_ENABLED=true`. Its unset/default value keeps the six-hour schedule disabled. Cron is `17 */6 * * *` UTC, offset from the busy top of the hour. Disable every other import scheduler for the same sources first. Monitor accepted-source observation age independently of Actions run color. GitHub schedules can be delayed or dropped, and public-repo schedules can be disabled after prolonged repository inactivity; do not depend on permanent unattended scheduling without monitoring.
+Only then set repository variable `SCHEDULE_ENABLED=true`. Its unset/default value keeps the 30-minute schedule disabled. Cron is `17,47 * * * *` UTC, offset from the busy top of the hour. Disable every other import scheduler for the same sources first. Monitor accepted-source observation age independently of Actions run color. GitHub schedules can be delayed or dropped, and public-repo schedules can be disabled after prolonged repository inactivity; do not depend on permanent unattended scheduling without monitoring.
 
 ## Operation and privacy
 
