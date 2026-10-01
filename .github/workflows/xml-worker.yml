@@ -33,6 +33,15 @@ jobs:
           PRIVATE_READ_TOKEN: ${{ secrets.PRIVATE_READ_TOKEN }}
       - name: Verify trusted worker
         run: python3 runner.py verify
+      - name: Install optional VPN tools
+        if: vars.VPN_ENABLED == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq wireguard-tools
+      - name: Connect approved feed network
+        if: vars.VPN_ENABLED == 'true'
+        run: python3 vpn.py up
+        env:
+          WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
+          PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
       - name: Test complete acquisition
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'probe'
         run: python3 runner.py probe
@@ -45,6 +54,9 @@ jobs:
           PRIVATE_SOURCE_ID: ${{ secrets.PRIVATE_SOURCE_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      - name: Disconnect approved feed network
+        if: always() && vars.VPN_ENABLED == 'true'
+        run: python3 vpn.py down
       - name: Remove private temporary files
         if: always()
         shell: bash
