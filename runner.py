@@ -155,6 +155,9 @@ def run(mode):
     elif mode == 'curl-probe':
         url = required('PRIVATE_FEED_URL')
         target = root() / 'current.xml'
+        command([str(python), '-c',
+                 'import sys; sys.path.insert(0,"worker"); from import_feed import approved_url; approved_url(sys.argv[1])',
+                 url], 'curl_source_check', 15)
         command(['curl', '--fail', '--silent', '--show-error', '--proto', '=https',
                  '--max-time', '90', '--max-filesize', '120000000',
                  '--output', str(target), url], 'curl_transfer', 100)
