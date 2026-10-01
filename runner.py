@@ -124,6 +124,11 @@ def command(arguments, phase, timeout, environment=None):
     if log.stat().st_size > MAX_LOG_BYTES: raise PublicError('runtime_limit')
     if process.returncode:
         category = 'verification_failed' if phase in ('dependencies', 'tests') else 'worker_failed'
+        if phase == 'curl_transfer':
+            category = {22: 'source_http_error', 28: 'transfer_timeout',
+                        18: 'incomplete_transfer', 35: 'tls_failed',
+                        60: 'tls_certificate_failed', 63: 'byte_limit',
+                        6: 'dns_failed', 7: 'connection_failed'}.get(process.returncode, 'transfer_failed')
         # Read only bounded local output. Never print it, traceback or command.
         for line in log.read_bytes()[:MAX_LOG_BYTES].splitlines():
             try: event = json.loads(line)
