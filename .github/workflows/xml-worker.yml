@@ -5,7 +5,7 @@ on:
       mode:
         description: Operation
         type: choice
-        options: [probe, import]
+        options: [probe, curl-probe, import]
         default: probe
         required: true
   schedule:
@@ -48,10 +48,11 @@ jobs:
         env:
           PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
       - name: Test complete acquisition
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'probe'
-        run: python3 runner.py probe
+        if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'probe' || inputs.mode == 'curl-probe')
+        run: python3 runner.py "$JOB_MODE"
         env:
           PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
+          JOB_MODE: ${{ inputs.mode }}
       - name: Import and retain snapshots
         if: github.event_name == 'schedule' || inputs.mode == 'import'
         run: python3 runner.py import
