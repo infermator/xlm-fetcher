@@ -9,7 +9,7 @@ on:
         default: probe
         required: true
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17,47 * * * *'
 permissions:
   contents: read
 concurrency:
