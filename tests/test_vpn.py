@@ -2,9 +2,14 @@ import base64
 import sys
 from pathlib import Path
 import unittest
+import contextlib
+import io
+import json
+import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from vpn import configuration
+from vpn import configuration, health, probe
 from runner import PublicError
 
 KEY = base64.b64encode(b'x' * 32).decode()
@@ -55,3 +60,22 @@ class VPNTests(unittest.TestCase):
         except PublicError as error:
             self.assertEqual(error.category, 'vpn_configuration_invalid')
             self.assertNotIn(KEY, str(error))
+
+    def test_health_prints_only_booleans_without_peer_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / 'vpn_handshake_check.log').write_text(KEY + '\t12345\n')
+            (folder / 'vpn_transfer_check.log').write_text(KEY + '\t456\t789\n')
+            output = io.StringIO()
+            with patch('vpn.root', return_value=folder), patch('vpn.command'), contextlib.redirect_stdout(output):
+                health()
+            data = json.loads(output.getvalue())
+            self.assertEqual(data, {'phase': 'vpn_health', 'handshake': True, 'received_data': True, 'sent_data': True})
+            self.assertNotIn(KEY, output.getvalue())
+
+    def test_failed_connectivity_keeps_health_diagnostics_and_stops(self):
+        with patch('vpn.required', return_value='https://feed.example.org/x'), patch('vpn.socket.create_connection', side_effect=TimeoutError()), patch('vpn.health') as check:
+            with self.assertRaises(PublicError) as raised:
+                probe()
+            self.assertEqual(raised.exception.category, 'vpn_feed_unreachable')
+            check.assert_called_once()
