@@ -42,6 +42,11 @@ jobs:
         env:
           WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
           PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
+      - name: Check feed connectivity
+        if: vars.VPN_ENABLED == 'true'
+        run: python3 vpn.py probe
+        env:
+          PRIVATE_FEED_URL: ${{ secrets.PRIVATE_FEED_URL }}
       - name: Test complete acquisition
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'probe'
         run: python3 runner.py probe
