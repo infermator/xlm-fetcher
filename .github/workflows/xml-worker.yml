@@ -54,6 +54,9 @@ jobs:
           PRIVATE_SOURCE_ID: ${{ secrets.PRIVATE_SOURCE_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      - name: Check approved network health
+        if: always() && vars.VPN_ENABLED == 'true'
+        run: python3 vpn.py health
       - name: Disconnect approved feed network
         if: always() && vars.VPN_ENABLED == 'true'
         run: python3 vpn.py down
