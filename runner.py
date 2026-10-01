@@ -94,7 +94,7 @@ def child_environment(include_database=False):
     # Only the import subprocess receives write credentials. GitHub read access
     # is never inherited by the dependency installer or private worker code.
     names = {'PATH', 'RUNNER_TEMP', 'LANG', 'LC_ALL', 'SYSTEMROOT', 'SSL_CERT_FILE',
-             'SSL_CERT_DIR', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'NO_PROXY'}
+             'SSL_CERT_DIR', 'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'NO_PROXY', 'RUNNER_TRACKING_ID'}
     environment = {key: value for key, value in os.environ.items() if key in names}
     environment.update(PYTHONDONTWRITEBYTECODE='1', PYTHONUNBUFFERED='1', TMPDIR=str(root()))
     if include_database:
@@ -110,11 +110,16 @@ def command(arguments, phase, timeout, environment=None):
         process = subprocess.Popen(arguments, cwd=root(), stdout=stream,
             stderr=subprocess.STDOUT, env=environment or child_environment(), start_new_session=True)
         deadline = time.monotonic() + timeout
-        while process.poll() is None:
-            if time.monotonic() > deadline or log.stat().st_size > MAX_LOG_BYTES:
+        try:
+            while process.poll() is None:
+                if time.monotonic() > deadline or log.stat().st_size > MAX_LOG_BYTES:
+                    os.killpg(process.pid, signal.SIGKILL); process.wait()
+                    raise PublicError('runtime_limit')
+                time.sleep(0.1)
+        except BaseException:
+            if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL); process.wait()
-                raise PublicError('runtime_limit')
-            time.sleep(0.1)
+            raise
     log.chmod(0o600)
     if log.stat().st_size > MAX_LOG_BYTES: raise PublicError('runtime_limit')
     if process.returncode:
@@ -147,6 +152,14 @@ def run(mode):
         url = required('PRIVATE_FEED_URL')
         command([str(python), 'worker/fetch_feed.py', '--url', url,
                  '--output', str(root() / 'current.xml')], 'probe', 900)
+    elif mode == 'curl-probe':
+        url = required('PRIVATE_FEED_URL')
+        target = root() / 'current.xml'
+        command(['curl', '--fail', '--silent', '--show-error', '--proto', '=https',
+                 '--max-time', '90', '--max-filesize', '120000000',
+                 '--output', str(target), url], 'curl_transfer', 100)
+        command([str(python), 'worker/import_feed.py', '--file', str(target),
+                 '--validate-only'], 'curl_validation', 120)
     elif mode == 'import':
         source = required('PRIVATE_SOURCE_ID')
         # The private worker loads the URL from the authoritative DB source;
@@ -160,8 +173,11 @@ def run(mode):
 
 def main():
     os.umask(0o077)
+    def terminate(signum, frame):
+        raise SystemExit(128 + signum)
+    signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=['prepare', 'verify', 'probe', 'import'])
+    parser.add_argument('phase', choices=['prepare', 'verify', 'probe', 'curl-probe', 'import'])
     args = parser.parse_args()
     try:
         if args.phase == 'prepare': prepare()
