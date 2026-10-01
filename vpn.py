@@ -111,13 +111,25 @@ def down():
         raise failure
 
 
+def health():
+    command(['sudo', '-n', 'wg', 'show', INTERFACE, 'latest-handshakes'], 'vpn_handshake_check', 15)
+    command(['sudo', '-n', 'wg', 'show', INTERFACE, 'transfer'], 'vpn_transfer_check', 15)
+    handshakes = (root() / 'vpn_handshake_check.log').read_text().splitlines()
+    transfers = (root() / 'vpn_transfer_check.log').read_text().splitlines()
+    connected = any(int(line.split()[1]) > 0 for line in handshakes if len(line.split()) == 2)
+    received = any(int(line.split()[1]) > 0 for line in transfers if len(line.split()) == 3)
+    sent = any(int(line.split()[2]) > 0 for line in transfers if len(line.split()) == 3)
+    print(json.dumps({'phase': 'vpn_health', 'handshake': connected,
+                      'received_data': received, 'sent_data': sent}))
+
+
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['up', 'down'])
+    parser.add_argument('action', choices=['up', 'down', 'health'])
     action = parser.parse_args().action
     try:
-        up() if action == 'up' else down()
+        {'up': up, 'down': down, 'health': health}[action]()
         return 0
     except PublicError as error:
         print(json.dumps({'phase': 'vpn', 'status': 'failed', 'category': error.category}))
